@@ -1,6 +1,9 @@
 const WebSocket = require("ws");
 const fs = require("fs");
 
+const Client = require("./models/client")
+const Joi = require("joi");
+
 const clients = [];
 const messages = [];
 let jsonArr = [];
@@ -18,32 +21,31 @@ const wsConnection = (server) => {
     clients.push(ws);
     sendMessages();
 
-    fs.readFileSync("mensajes.json", "utf-8", (err, data) => {
-      if (err) throw err;
-      mensajes = data;
-      console.log(mensajes);
-    });
+
 
 
     ws.on("message", (message) => {
       messages.push(message);
-      var date = new Date();
-      var timestamp = date.getTime();
-      var jsonPai =
-        "{" +
-        '"message" : "' +
-        messages[messages.length - 1] +
-        '",' +
-        '"Author" : "Santiago Gamboa",' +
-        '"ts" : "' +
-        timestamp +
-        '"' +
-        "}";
-      jsonArr.push(jsonPai);
+      let date = new Date();
+      let timestamp = date.getTime();
 
-      fs.writeFileSync("mensajes.json", "[" + jsonArr + "]", function (err) {
-        if (err) throw err;
-      });
+      const { error } = validateClient(message);
+      if(error){
+        console.log("Error al enviar mensaje");
+        //return res.status(404).send(error)
+      }
+      else{
+        Client.create({message: message, Author: "Santiago Gamboa", ts: timestamp}).then(response=>{
+          console.log(response);
+          if(response === null){
+            return console.log("Message not found");
+          }
+          //message.send(response);
+          //wslib.sendMessages();
+        })
+      }
+
+
 
       sendMessages();
     });
@@ -52,6 +54,14 @@ const wsConnection = (server) => {
   const sendMessages = () => {
     clients.forEach((client) => client.send(JSON.stringify(messages)));
   };
+};
+
+const validateClient = (msg) => {
+  const schema = Joi.object({
+    message: Joi.string().min(5).required()
+  });
+
+  return schema.validate(msg);
 };
 
 exports.wsConnection = wsConnection;
